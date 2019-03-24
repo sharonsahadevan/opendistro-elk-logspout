@@ -1,0 +1,2 @@
+FROM amazon/opendistro-for-elasticsearch-kibana:0.7.0
+

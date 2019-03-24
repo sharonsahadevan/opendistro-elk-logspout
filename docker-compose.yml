@@ -42,7 +42,9 @@ services:
     networks:
       - odfe-net
   kibana:
-    image: amazon/opendistro-for-elasticsearch-kibana:0.7.0
+    build:
+      dockerfile: Dockerfile
+      context: ./kibana
     container_name: odfe-kibana
     ports:
       - 5601:5601
@@ -51,13 +53,14 @@ services:
     environment:
       ELASTICSEARCH_URL: http://odfe-node1:9200
       OPENDISTRO_SECURITY_MULTITENANCY_ENABLED: "false"
+      XPACK_SECURITY_ENABLED: "false"
     networks:
       - odfe-net
+
   logstash:
     build:
-      context: logstash/
-      args:
-        ELK_VERSION: $ELK_VERSION
+      dockerfile: Dockerfile
+      context: ./logstash
     volumes:
       - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
       - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
