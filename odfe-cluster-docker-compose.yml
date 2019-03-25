@@ -1,29 +1,46 @@
 version: '3'
 services:
-  elasticsearch:
+  odfe-node1:
     build:
       dockerfile: Dockerfile
       context: ./elasticsearch
-    container_name: elasticsearch
+    container_name: odfe-node1
     environment:
-      - bootstrap.memory_lock=true 
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" 
+      - cluster.name=odfe-cluster
+      - bootstrap.memory_lock=true # along with the memlock settings below, disables swapping
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # minimum and maximum Java heap size, recommend setting both to 50% of system RAM
       - opendistro_security.ssl.http.enabled=false
-      - discovery.zen.ping.unicast.hosts=elasticsearch
+      - discovery.zen.ping.unicast.hosts=odfe-node1
 
     ulimits:
       memlock:
         soft: -1
         hard: -1
     volumes:
-       - elasticsearch:/usr/share/elasticsearch/data
-       - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+       - odfe-data1:/usr/share/elasticsearch/data
     ports:
       - 9200:9200
-      - 9700:9600 
+      #- 9700:9600 # required for Performance Analyzer
     networks:
       - odfe-net
-
+  odfe-node2:
+    image: amazon/opendistro-for-elasticsearch:0.7.0
+    container_name: odfe-node2
+    environment:
+     - cluster.name=odfe-cluster
+     - bootstrap.memory_lock=true
+     - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+     - discovery.zen.ping.unicast.hosts=odfe-node1
+     - opendistro_security.ssl.http.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+       - odfe-data2:/usr/share/elasticsearch/data
+       - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    networks:
+      - odfe-net
   kibana:
     build:
       dockerfile: Dockerfile
@@ -34,7 +51,7 @@ services:
     expose:
       - "5601"
     environment:
-      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_URL: http://odfe-node1:9200
       OPENDISTRO_SECURITY_MULTITENANCY_ENABLED: "false"
       XPACK_SECURITY_ENABLED: "false"
     networks:
@@ -55,23 +72,26 @@ services:
     networks:
       - odfe-net
     depends_on:
-      - elasticsearch
+      - odfe-node2
   logspout:
-    image: gliderlabs/logspout:v3
+    image: gliderlabs/logspout:v2
+    restart: always
     command: 'udp://logstash:5044'
+    #environment:
+      #ROUTE_URIS: udp://logstash:5000
     links:
       - logstash
     volumes:
       - '/var/run/docker.sock:/tmp/docker.sock'
     depends_on:
-      - elasticsearch
+      - odfe-node2
       - logstash
       - kibana
     networks:
       - odfe-net
 volumes:
-  elasticsearch:
-
+  odfe-data1:
+  odfe-data2:
 
 networks:
   odfe-net:
